@@ -1,0 +1,9 @@
+!
+! Datos del sistema a resolver
+!
+E0      = 2d0        !Energia de incidencia del electrón
+spin    = 0          !spin total del sistema spin=0 (singlet) o spin=1 (triplet)
+ninterv = 200         !Número de puntos a calcular en la seccion eficaz
+res     = eq         !Si res=eq la base se calcula en igual energía E(1)=E(2)=Etot/2
+ratio   = 1d0	     !si res=ne hay que poner que energía usa.
+dump    = no

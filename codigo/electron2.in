@@ -1,0 +1,14 @@
+!
+!  Electron 2 input data
+!
+E      =  1d0
+Z      = -1d0
+lmax   = 0
+pot    = yuk
+rmax   = 300d0
+nrmax  = 6000
+wave   = out
+nrm    = n
+out    = y
+nasint = 50
+

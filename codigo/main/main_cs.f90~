@@ -1,0 +1,127 @@
+!Calculation of wave function Psi+(r1,r2) for the Temkin Poet model with the coeffiecient 
+!expansion given by main_ptp
+
+Program sturmianTPCS
+   !........ Parallel Version
+    !
+    use debug_module
+    use problemdata_module
+    use array_module
+    use sturmians_calc
+    use sturmians_data
+    use parablock
+    use crashblock
+    use procdata
+    use pi_module
+    implicit none
+    real timei
+
+    integer nn,ierr
+    include 'mpif.h'
+
+    character*(MPI_MAX_PROCESSOR_NAME) name
+    integer irlen
+
+    integer method,i,j,k,ndata
+    character*2 final,rh
+    character*3 mth,lda,ord
+    character*4 al
+    real*8 rf,kf,k1
+    real*8,allocatable :: cs(:),cs1(:),temp(:,:)
+
+    !
+    !  Start MPI
+    !
+    call mpi_init(ierr)
+    call mpi_comm_rank(mpi_comm_world,iam,ierr)
+    call mpi_comm_size(mpi_comm_world,nproc,ierr)
+    call MPI_GET_PROCESSOR_NAME(name,irlen,ierr)
+
+    call set_debuglevel('a',iam)
+
+    write(nout,'(a,i3,a,a)') ' Compute Basis proc=:',iam,'in ',name
+
+    !      Initialization - Sturmian basis set and size
+    call read_problemdata(E0,spin,ninterv,res,dump,iam)
+    call read_cs(dumpcs,dumpf,flux,method,final,rf,iam)
+
+    call BasisSet(NN,iam,nproc)
+
+    call flush(nout)
+    call timing(timei,iam,nproc,"Basis time: ")
+
+    !    Spline of the basis set
+    call sturmians_spline
+
+    call flush(nout)
+    call timing(timei,iam,nproc,"Spline time: ")
+
+
+    !   Read the coefficients and stores in x
+    allocate(bn(NN))
+    write(lda,'(f3.1)') lambda(1,0)
+    write(ord,'(i3.3)') norder(1,0)
+    write(al,'(f4.2)') alfa(1,0)
+    open(unit=1000,file='coeficientes/sol_N'//ord//'_lda'//lda//'_a'//al//'_2E.dat')
+    do i=1,NN
+    read(1000,'(2i6.5,2e18.8)') j,k,bn(i)
+    enddo    
+    call mpi_barrier(mpi_comm_world,ierr)
+
+    !  Calcula e imprime la funcion PsiSc(r1,r2)
+    if(dumpf) call scatt_func
+
+ !  Calcula e imprime el flujo de PsiSc(r1,r2)
+    if(flux) call scatt_flux
+
+    ! Calcula la SESD
+    if(dumpcs)then
+    allocate(cs1(0:ninterv)) 
+    do j=0,3
+    rf=40d0+10d0*j
+    allocate(cs(0:ninterv))
+    cs1=0d0
+    call cross_section(method,final,rf,cs)
+    call mpi_barrier(mpi_comm_world,ierr)
+    call MPI_REDUCE(cs,cs1,ninterv+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,mpi_comm_world,ierr)
+    deallocate(cs)
+	if(iam.eq.0)then
+        if(method.eq.1)then
+	write(mth,'(a3)') 'vol'
+	else
+	write(mth,'(a3)') 'sup'
+	endif
+        write(rh,'(i2)') int(rf)
+	open(unit=1234,file='CSTP_N'//ord//'_lda'//lda//'_a'//al//'_'//mth//'_r'//rh//'.dat')
+	do i=0,ninterv
+		if(i.eq.0)then
+            	k1=0.05d0
+        	else
+            	k1=sqrt(2d0*(1d0*i*Etot/(ninterv*1d0)))
+		endif
+		if(i.eq.ninterv)then
+		k1=sqrt(2d0*Etot-0.05d0*0.05d0)
+		endif
+	write(1234,'(f20.10,1x,f20.10)') k1*k1/2d0,1.1d0*1.1d0*cs1(i)
+	enddo
+        endif
+    enddo
+    deallocate(cs1)
+    endif
+
+    !      Free Sturmian basis
+    call free_basis
+
+    !      Deallocation coefficients
+    if(allocated(bn)) deallocate(bn,stat=ierr)
+    if(ierr.gt.0) write(nout,*) "deallocation of bn failed",ierr
+
+    !     Fin MPI
+    call mpi_finalize(ierr)
+    if(ierr>0) then 
+        write(*,*) "MPI finishes with ierr",ierr
+        stop
+    end if
+ 	
+end program sturmianTPCS
+

@@ -1,0 +1,6 @@
+dumpf   = no
+flux    = no
+dumpcs  = yes
+method  = 1
+final   = dw
+rf      = 70.0
